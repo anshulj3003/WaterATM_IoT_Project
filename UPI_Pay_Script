@@ -1,0 +1,16 @@
+function doGet(e) {
+  var name = e.parameter.name;
+  var amount = 10;
+
+  var upi_id = "YOUR_ACTUAL_UPI_ID_@upi";
+  var upi_link = `upi://pay?pa=${upi_id}&pn=SmartPump&am=${amount}&cu=INR`;
+
+  // Optionally, send via email
+  MailApp.sendEmail({
+    to: "user@example.com",
+    subject: "Pay to Use Water Dispenser",
+    htmlBody: "Click the link to pay: <a href='" + upi_link + "'>Pay ₹" + amount + "</a>"
+  });
+
+  return ContentService.createTextOutput(upi_link);
+}
