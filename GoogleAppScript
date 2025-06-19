@@ -1,0 +1,17 @@
+function doGet(e) {
+  var sheet = SpreadsheetApp.openById("1FMdQR9-68rF7QUtho-l9qdVNxkEsOHmV9GM2u4t3j_g").getSheetByName("Sheet1");
+  
+  if (e.parameter.name) {
+    var name = e.parameter.name;
+    var date = new Date();
+
+    sheet.appendRow([name, date]);
+    
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  }
+  return ContentService.createTextOutput("Error: No name provided").setMimeType(ContentService.MimeType.TEXT);
+}
+
+
+
+https://script.google.com/macros/s/AKfycbzVD3h-7-GRGXO4GS-XsbVFLofkxUA9Yw-KnYlcqYZYNC7lRa0_g1pow2_HS3XRYysGKA/exec
