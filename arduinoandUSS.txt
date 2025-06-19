@@ -1,0 +1,72 @@
+#include <NewPing.h>
+
+#define TRIGGER_PIN 7    
+#define ECHO_PIN 6      
+#define MAX_DISTANCE 200  
+#define RELAY_PIN 8     
+#define BUTTON_PIN 4  // Push button connected to Pin 4
+
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
+
+bool pumpState = false;  // Track pump status
+bool sensorEnabled = false;  // Track sensor state
+
+void setup() {
+    Serial.begin(9600);
+    pinMode(RELAY_PIN, OUTPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLUP); // Use internal pull-up resistor
+    digitalWrite(RELAY_PIN, HIGH);  // Start with pump OFF
+}
+
+void loop() {
+    if (digitalRead(BUTTON_PIN) == LOW) {  // Button pressed
+        sensorEnabled = true;
+    } else {
+        sensorEnabled = false;
+        digitalWrite(RELAY_PIN, HIGH); // Ensure pump is OFF when button is released
+        pumpState = false;
+    }
+
+    if (sensorEnabled) {
+        int distance = getStableDistance(); // Get filtered distance
+
+        Serial.print("Distance: ");
+        Serial.print(distance);
+        Serial.print(" cm | Pump: ");
+        Serial.println(pumpState ? "ON" : "OFF");
+
+        if (distance > 0 && distance <= 10 && !pumpState) {  
+            pumpState = true;
+            digitalWrite(RELAY_PIN, LOW);  // Turn ON pump
+            Serial.println("🚰 Pump ON");
+        } 
+        else if (distance > 15 && pumpState) {  
+            pumpState = false;
+            digitalWrite(RELAY_PIN, HIGH); // Turn OFF pump
+            Serial.println("🚰 Pump OFF");
+        }
+    } else {
+        Serial.println("🔴 Sensor Disabled (Button Released)");
+    }
+
+    delay(500);
+}
+
+/****************************************************************************************************
+ * Function: getStableDistance() - Filters distance readings by averaging multiple values
+ ****************************************************************************************************/
+int getStableDistance() {
+    int total = 0;
+    int validReadings = 0;
+
+    for (int i = 0; i < 5; i++) {  // Take 5 readings
+        int d = sonar.ping_cm();
+        if (d > 0) {  // Ignore zero readings
+            total += d;
+            validReadings++;
+        }
+        delay(50);  // Small delay between readings
+    }
+
+    return (validReadings > 0) ? total / validReadings : 999; // Return average distance or 999 if no valid readings
+}

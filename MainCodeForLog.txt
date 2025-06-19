@@ -1,0 +1,160 @@
+#include <Wire.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <LiquidCrystal_I2C.h>
+
+// RFID Pin Configuration for ESP32
+#define RST_PIN   2  // ESP32 Reset Pin
+#define SS_PIN    5  // ESP32 SPI SS Pin
+
+MFRC522 mfrc522(5, 2);
+MFRC522::MIFARE_Key key;  
+MFRC522::StatusCode status;
+
+// WiFi Credentials
+#define WIFI_SSID "Anand citylink"     // Your WiFi SSID
+#define WIFI_PASSWORD "anshul@30"      // Your WiFi Password
+
+// Google Apps Script Web App URL
+const String sheet_url = "https://script.google.com/macros/s/AKfycbyWYCjT8u1KLrgGSPWH77trH1_qA5mDcneOTEJ6zzOSBoJAJPc6p784Mvk6gpdfQSeIyg/exec?name=";
+
+// Initialize the LCD display (Use 0x27 or 0x3F depending on your display)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// RFID Data
+int blockNum = 2;  
+byte bufferLen = 18;
+byte readBlockData[18];
+String card_holder_name;
+
+/****************************************************************************************************
+ * setup() function
+ ****************************************************************************************************/
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  // Initialize LCD for ESP32
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Initializing...");
+  
+  // WiFi Connectivity
+  Serial.println("\nConnecting to WiFi...");
+  WiFi.begin("Anand citylink", "anshul@30");
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting WiFi...");
+    delay(500);
+  }
+
+  Serial.println("\nWiFi Connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi Connected!");
+  delay(2000);
+  lcd.clear();
+
+  // Initialize RFID Module
+  SPI.begin();
+  mfrc522.PCD_Init();
+
+  Serial.println("RFID Initialized.");
+  lcd.setCursor(0, 0);
+  lcd.print("RFID Ready...");
+}
+
+/****************************************************************************************************
+ * loop() function
+ ****************************************************************************************************/
+void loop() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Scan your Card");
+
+  // Wait for an RFID card
+  if (!mfrc522.PICC_IsNewCardPresent()) return;
+  if (!mfrc522.PICC_ReadCardSerial()) return;
+
+  Serial.println("\nReading RFID...");
+
+  // Read RFID Data
+  ReadDataFromBlock(blockNum, readBlockData);
+
+  // Convert RFID Data to String
+  card_holder_name = String((char*)readBlockData);
+  card_holder_name.trim();
+  Serial.println("Detected Card: " + card_holder_name);
+
+  // Display on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Hey " + card_holder_name + "!");
+  delay(2000);
+
+  // Send data to Google Sheets
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient https;
+    String final_url = sheet_url + card_holder_name;
+    final_url.trim();
+
+    Serial.print("Final URL: ");
+    Serial.println(final_url);
+
+
+    https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    if (https.begin(final_url)) {
+      int httpCode = https.GET();
+
+      Serial.printf("HTTP Response Code: %d\n", httpCode);
+
+      if (httpCode > 0) {
+        lcd.setCursor(0, 1);
+        lcd.print("Data Recorded!");
+      } else {
+        Serial.printf("HTTP Error: %s\n", https.errorToString(httpCode).c_str());
+      }
+
+      https.end();
+    } else {
+      Serial.println("[HTTPS] Unable to connect.");
+    }
+  }
+
+  delay(2000);
+}
+
+/****************************************************************************************************
+ * ReadDataFromBlock() function
+ ****************************************************************************************************/
+void ReadDataFromBlock(int blockNum, byte readBlockData[]) { 
+  for (byte i = 0; i < 6; i++) {
+    key.keyByte[i] = 0xFF;
+  }
+
+  status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockNum, &key, &(mfrc522.uid));
+
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print("Authentication failed: ");
+    Serial.println(mfrc522.GetStatusCodeName(status));
+    return;
+  }
+
+  status = mfrc522.MIFARE_Read(blockNum, readBlockData, &bufferLen);
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print("Reading failed: ");
+    Serial.println(mfrc522.GetStatusCodeName(status));
+    return;
+  }
+
+  Serial.println("RFID Read Success!");
+}
